@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, X, Phone, User, CheckCircle, Clock, Search, ShieldOff, ShieldCheck, Upload, Download } from 'lucide-react'
+import { Plus, X, Phone, User, CheckCircle, Clock, Search, ShieldOff, ShieldCheck, Upload, Download, Trash2 } from 'lucide-react'
 import AdminSidebar from '../components/AdminSidebar'
 import TopNav from '../components/TopNav'
 import api from '../api/axios'
@@ -18,6 +18,7 @@ export default function AdminVoters() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
   const fileRef = useRef()
 
   const inputClass = "w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all text-sm"
@@ -139,10 +140,30 @@ export default function AdminVoters() {
     XLSX.writeFile(wb, 'voter_template.xlsx')
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this voter?')) return
-    try { await api.delete(`/voter-register/${id}/`); fetchVoters() }
-    catch (err) { console.error(err) }
+  const downloadVoterCodes = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Full Name', 'Phone Number', 'Secret Code', 'Status'],
+      ...voters.map(v => [
+        v.full_name,
+        v.phone_number,
+        v.secret_code,
+        v.is_used ? 'Registered' : 'Pending'
+      ])
+    ])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Voter Codes')
+    XLSX.writeFile(wb, 'voter_codes.xlsx')
+  }
+
+  const handleDelete = async (id, fullName) => {
+    if (!window.confirm(`Permanently delete "${fullName}"?\n\nThis will also delete their user account and any votes they have cast. This cannot be undone.`)) return
+    setDeletingId(id)
+    try {
+      await api.delete(`/voter-register/${id}/`)
+      fetchVoters()
+    } catch (err) {
+      alert('Failed to delete voter: ' + (err.response?.data?.error || err.message))
+    } finally { setDeletingId(null) }
   }
 
   const handleToggle = async (id, currentState) => {
@@ -170,7 +191,12 @@ export default function AdminVoters() {
               <h1 className="text-xl lg:text-2xl font-bold text-gray-800">Voter Register</h1>
               <p className="text-gray-400 text-sm">Manage registered voters.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={downloadVoterCodes}
+                className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 lg:px-4 py-2.5 rounded-xl font-medium text-sm shadow-lg shadow-green-500/20">
+                <Download size={14} /> <span className="hidden sm:inline">Export</span> Codes
+              </motion.button>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 onClick={() => { setShowBulkModal(true); setBulkErrors([]); setBulkSuccess(''); setBulkData([]) }}
                 className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white px-3 lg:px-4 py-2.5 rounded-xl font-medium text-sm shadow-lg shadow-blue-500/20">
@@ -209,7 +235,6 @@ export default function AdminVoters() {
               placeholder="Search voters..." />
           </div>
 
-          {/* Mobile Cards / Desktop Table */}
           {loading ? (
             <div className="p-12 text-center">
               <div className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
@@ -263,16 +288,17 @@ export default function AdminVoters() {
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => handleToggle(voter.id, voter.is_active)}
                           className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all ${
-                            voter.is_active ? 'bg-red-100 hover:bg-red-200 text-red-500' : 'bg-green-100 hover:bg-green-200 text-green-600'
+                            voter.is_active ? 'bg-amber-100 hover:bg-amber-200 text-amber-600' : 'bg-green-100 hover:bg-green-200 text-green-600'
                           }`}>
                           {voter.is_active ? 'Deactivate' : 'Activate'}
                         </button>
-                        {!voter.is_used && (
-                          <button onClick={() => handleDelete(voter.id)}
-                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all">
-                            <X size={13} />
-                          </button>
-                        )}
+                        <button onClick={() => handleDelete(voter.id, voter.full_name)}
+                          disabled={deletingId === voter.id}
+                          className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-all disabled:opacity-50">
+                          {deletingId === voter.id
+                            ? <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                            : <Trash2 size={13} />}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -337,16 +363,18 @@ export default function AdminVoters() {
                             <div className="flex items-center gap-1.5">
                               <button onClick={() => handleToggle(voter.id, voter.is_active)}
                                 className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all ${
-                                  voter.is_active ? 'bg-red-100 hover:bg-red-200 text-red-500' : 'bg-green-100 hover:bg-green-200 text-green-600'
+                                  voter.is_active ? 'bg-amber-100 hover:bg-amber-200 text-amber-600' : 'bg-green-100 hover:bg-green-200 text-green-600'
                                 }`}>
                                 {voter.is_active ? 'Deactivate' : 'Activate'}
                               </button>
-                              {!voter.is_used && (
-                                <button onClick={() => handleDelete(voter.id)}
-                                  className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all">
-                                  <X size={13} />
-                                </button>
-                              )}
+                              <button onClick={() => handleDelete(voter.id, voter.full_name)}
+                                disabled={deletingId === voter.id}
+                                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-500 transition-all disabled:opacity-50">
+                                {deletingId === voter.id
+                                  ? <div className="w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                  : <Trash2 size={11} />}
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -378,12 +406,16 @@ export default function AdminVoters() {
             {error && <div className="bg-red-50 border border-red-200 text-red-500 rounded-xl p-3 mb-4 text-sm">{error}</div>}
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 mb-1.5 block font-medium flex items-center gap-1.5"><User size={11} /> Full Name *</label>
+                <label className="text-xs text-gray-500 mb-1.5 block font-medium flex items-center gap-1.5">
+                  <User size={11} /> Full Name *
+                </label>
                 <input type="text" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
                   className={inputClass} placeholder="e.g. John Doe" required />
               </div>
               <div>
-                <label className="text-xs text-gray-500 mb-1.5 block font-medium flex items-center gap-1.5"><Phone size={11} /> Phone Number *</label>
+                <label className="text-xs text-gray-500 mb-1.5 block font-medium flex items-center gap-1.5">
+                  <Phone size={11} /> Phone Number *
+                </label>
                 <input type="text" value={form.phone_number} onChange={e => setForm({ ...form, phone_number: e.target.value })}
                   className={inputClass} placeholder="e.g. +256700000000" required />
               </div>

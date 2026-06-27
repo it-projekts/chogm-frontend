@@ -95,14 +95,16 @@ export default function AdminResults() {
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3 min-w-0">
                               {candidate.photo_url ? (
-                                <img src={candidate.photo_url} alt={candidate.full_name}
-                                  className="w-10 h-10 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
-                              ) : (
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
-                                  style={{ background: color }}>
-                                  {isLeading ? '🏆' : candidate.full_name.charAt(0)}
-                                </div>
-                              )}
+  <img src={candidate.photo_url} alt={candidate.full_name}
+    className="w-10 h-10 rounded-xl object-cover border border-gray-100 flex-shrink-0"
+    onError={(e) => { e.target.style.display = 'none' }}
+  />
+) : (
+  <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0"
+    style={{ background: color }}>
+    {isLeading ? '🏆' : candidate.full_name.charAt(0)}
+  </div>
+)}
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-800 text-sm truncate">{candidate.full_name}</p>
                                 <p className="text-xs text-gray-400">{candidate.party || 'Independent'}</p>

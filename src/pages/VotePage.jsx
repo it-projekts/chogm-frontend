@@ -117,16 +117,24 @@ export default function VotePage() {
                     : 'border-gray-100 hover:border-gray-200'
                 }`}>
                 <div className="flex items-start gap-3">
-                  {candidate.photo_url ? (
-                    <img src={candidate.photo_url} alt={candidate.full_name}
-                      className="w-14 h-14 rounded-xl object-cover border-2 border-gray-100 flex-shrink-0" />
-                  ) : (
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0 ${
-                      selected === candidate.id ? 'bg-orange-500' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {candidate.full_name.charAt(0)}
-                    </div>
-                  )}
+                 {candidate.photo_url ? (
+  <img
+    src={candidate.photo_url}
+    alt={candidate.full_name}
+    className={`w-14 h-14 rounded-xl object-cover border-2 transition-all flex-shrink-0 ${
+      selected === candidate.id ? 'border-orange-400' : 'border-gray-100'
+    }`}
+    onError={(e) => {
+      e.target.style.display = 'none'
+      e.target.parentNode.querySelector('.photo-fallback').style.display = 'flex'
+    }}
+  />
+) : null}
+<div className={`photo-fallback w-14 h-14 rounded-xl items-center justify-center text-white font-bold text-xl flex-shrink-0 ${
+  candidate.photo_url ? 'hidden' : 'flex'
+} ${selected === candidate.id ? 'bg-orange-500' : 'bg-gray-200 text-gray-500'}`}>
+  {candidate.full_name.charAt(0)}
+</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-bold text-gray-800 text-sm leading-tight">{candidate.full_name}</h3>

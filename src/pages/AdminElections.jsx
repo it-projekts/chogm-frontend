@@ -158,14 +158,16 @@ export default function AdminElections() {
                             <div key={candidate.id}
                               className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
                               <div className="flex items-center gap-2 min-w-0">
-                                {candidate.photo_url ? (
-                                  <img src={candidate.photo_url} alt={candidate.full_name}
-                                    className="w-9 h-9 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
-                                ) : (
-                                  <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                                    {candidate.full_name.charAt(0)}
-                                  </div>
-                                )}
+                               {candidate.photo_url ? (
+  <img src={candidate.photo_url} alt={candidate.full_name}
+    className="w-9 h-9 rounded-xl object-cover border border-gray-100 flex-shrink-0"
+    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
+  />
+) : (
+  <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+    {candidate.full_name.charAt(0)}
+  </div>
+)}
                                 <div className="min-w-0">
                                   <p className="font-semibold text-gray-800 text-sm truncate">{candidate.full_name}</p>
                                   <p className="text-xs text-gray-400 truncate">{candidate.party || 'Independent'} · {candidate.vote_count} votes</p>

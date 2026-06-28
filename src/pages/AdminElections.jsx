@@ -5,7 +5,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import TopNav from '../components/TopNav'
 import api from '../api/axios'
 
-const CLOUDINARY_CLOUD_NAME = 'YOUR_CLOUD_NAME'
+const CLOUDINARY_CLOUD_NAME = 'dt43syqcb'
 const CLOUDINARY_UPLOAD_PRESET = 'chogm_candidates'
 
 export default function AdminElections() {

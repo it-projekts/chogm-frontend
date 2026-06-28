@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, X, ChevronDown, ChevronUp, Users } from 'lucide-react'
+import { Plus, X, ChevronDown, ChevronUp, Users, ImageIcon } from 'lucide-react'
 import AdminSidebar from '../components/AdminSidebar'
 import TopNav from '../components/TopNav'
 import api from '../api/axios'
+
+const CLOUDINARY_CLOUD_NAME = 'YOUR_CLOUD_NAME'
+const CLOUDINARY_UPLOAD_PRESET = 'chogm_candidates'
 
 export default function AdminElections() {
   const [elections, setElections] = useState([])
@@ -11,10 +14,18 @@ export default function AdminElections() {
   const [showCandidateModal, setShowCandidateModal] = useState(false)
   const [selectedElection, setSelectedElection] = useState(null)
   const [expandedElection, setExpandedElection] = useState(null)
-  const [electionForm, setElectionForm] = useState({ title: '', description: '', start_date: '', end_date: '', status: 'draft' })
-  const [candidateForm, setCandidateForm] = useState({ full_name: '', party: '', bio: '', display_order: 0, photo: null })
+  const [electionForm, setElectionForm] = useState({
+    title: '', description: '', start_date: '', end_date: '', status: 'draft'
+  })
+  const [candidateForm, setCandidateForm] = useState({
+    full_name: '', party: '', bio: '', display_order: 0
+  })
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const inputClass = "w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 transition-all text-sm"
 
@@ -27,6 +38,45 @@ export default function AdminElections() {
   }
 
   useEffect(() => { fetchElections() }, [])
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Photo must be less than 2MB')
+      return
+    }
+
+    setUploadingPhoto(true)
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+      formData.append('folder', 'chogm_candidates')
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      )
+      const data = await res.json()
+
+      if (data.secure_url) {
+        setPhotoUrl(data.secure_url)
+        setPhotoPreview(data.secure_url)
+      } else {
+        setError('Photo upload failed. Check your Cloudinary preset settings.')
+        console.error('Cloudinary error:', data)
+      }
+    } catch (err) {
+      console.error('Photo upload failed:', err)
+      setError('Photo upload failed. Please try again.')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const handleCreateElection = async (e) => {
     e.preventDefault()
@@ -42,21 +92,30 @@ export default function AdminElections() {
 
   const handleAddCandidate = async (e) => {
     e.preventDefault()
+    if (uploadingPhoto) {
+      setError('Please wait for the photo to finish uploading')
+      return
+    }
     setSaving(true)
+    setError('')
     try {
-      const formData = new FormData()
-      formData.append('full_name', candidateForm.full_name)
-      formData.append('party', candidateForm.party)
-      formData.append('bio', candidateForm.bio)
-      formData.append('display_order', candidateForm.display_order)
-      formData.append('election', selectedElection.id)
-      if (candidateForm.photo) formData.append('photo', candidateForm.photo)
-      await api.post('/candidates/', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      await api.post('/candidates/', {
+        full_name: candidateForm.full_name,
+        party: candidateForm.party,
+        bio: candidateForm.bio,
+        display_order: candidateForm.display_order,
+        election: selectedElection.id,
+        photo_url_direct: photoUrl || null,
+      })
       setShowCandidateModal(false)
-      setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0, photo: null })
+      setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0 })
+      setPhotoUrl('')
+      setPhotoPreview('')
       fetchElections()
-    } catch (err) { console.error(err) }
-    finally { setSaving(false) }
+    } catch (err) {
+      console.error(err)
+      setError(err.response?.data?.error || 'Failed to add candidate')
+    } finally { setSaving(false) }
   }
 
   const updateStatus = async (id, status) => {
@@ -68,6 +127,15 @@ export default function AdminElections() {
     if (!window.confirm('Delete this candidate?')) return
     try { await api.delete(`/candidates/${id}/`); fetchElections() }
     catch (err) { console.error(err) }
+  }
+
+  const resetCandidateModal = () => {
+    setShowCandidateModal(false)
+    setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0 })
+    setPhotoUrl('')
+    setPhotoPreview('')
+    setError('')
+    setUploadingPhoto(false)
   }
 
   return (
@@ -131,7 +199,7 @@ export default function AdminElections() {
                             Close
                           </button>
                         )}
-                        <button onClick={() => { setSelectedElection(election); setShowCandidateModal(true) }}
+                        <button onClick={() => { setSelectedElection(election); setShowCandidateModal(true); setError('') }}
                           className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-2.5 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1">
                           <Plus size={11} /> Candidate
                         </button>
@@ -158,19 +226,19 @@ export default function AdminElections() {
                             <div key={candidate.id}
                               className="flex items-center justify-between bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
                               <div className="flex items-center gap-2 min-w-0">
-                               {candidate.photo_url ? (
-  <img src={candidate.photo_url} alt={candidate.full_name}
-    className="w-9 h-9 rounded-xl object-cover border border-gray-100 flex-shrink-0"
-    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
-  />
-) : (
-  <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-    {candidate.full_name.charAt(0)}
-  </div>
-)}
+                                {candidate.photo_url ? (
+                                  <img src={candidate.photo_url} alt={candidate.full_name}
+                                    className="w-10 h-10 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                                    {candidate.full_name.charAt(0)}
+                                  </div>
+                                )}
                                 <div className="min-w-0">
                                   <p className="font-semibold text-gray-800 text-sm truncate">{candidate.full_name}</p>
-                                  <p className="text-xs text-gray-400 truncate">{candidate.party || 'Independent'} · {candidate.vote_count} votes</p>
+                                  <p className="text-xs text-gray-400 truncate">
+                                    {candidate.party || 'Independent'} · {candidate.vote_count} votes
+                                  </p>
                                 </div>
                               </div>
                               <button onClick={() => deleteCandidate(candidate.id)}
@@ -261,7 +329,7 @@ export default function AdminElections() {
             className="bg-white rounded-3xl p-6 lg:p-8 w-full max-w-md shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xl font-bold text-gray-800">Add Candidate</h2>
-              <button onClick={() => setShowCandidateModal(false)}
+              <button onClick={resetCandidateModal}
                 className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-50">
                 <X size={18} />
               </button>
@@ -269,6 +337,11 @@ export default function AdminElections() {
             <p className="text-gray-400 text-sm mb-5">
               Adding to: <span className="text-orange-500 font-medium">{selectedElection?.title}</span>
             </p>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-500 rounded-xl p-3 mb-4 text-sm">{error}</div>
+            )}
+
             <form onSubmit={handleAddCandidate} className="space-y-4">
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block font-medium">Full Name *</label>
@@ -288,21 +361,70 @@ export default function AdminElections() {
                   onChange={e => setCandidateForm({ ...candidateForm, bio: e.target.value })}
                   className={inputClass + ' resize-none'} rows={3} placeholder="Brief biography..." />
               </div>
+
+              {/* Photo Upload */}
               <div>
-                <label className="text-xs text-gray-500 mb-1.5 block font-medium">Photo (optional)</label>
-                <input type="file" accept="image/*"
-                  onChange={e => setCandidateForm({ ...candidateForm, photo: e.target.files[0] })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-500 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-500 file:text-xs file:font-medium hover:file:bg-orange-100 transition-all" />
+                <label className="text-xs text-gray-500 mb-1.5 block font-medium">
+                  Photo (optional)
+                </label>
+
+                {/* Preview */}
+                {photoPreview ? (
+                  <div className="mb-3 relative w-fit">
+                    <img src={photoPreview} alt="Preview"
+                      className="w-24 h-24 rounded-2xl object-cover border-2 border-orange-200" />
+                    <button type="button"
+                      onClick={() => { setPhotoUrl(''); setPhotoPreview('') }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">
+                      <X size={10} />
+                    </button>
+                    <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className="text-xs">✓</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-3 w-24 h-24 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center bg-gray-50">
+                    <ImageIcon size={20} className="text-gray-300 mb-1" />
+                    <span className="text-xs text-gray-300">No photo</span>
+                  </div>
+                )}
+
+                <label className={`flex items-center gap-2 cursor-pointer px-4 py-2.5 rounded-xl border transition-all text-sm font-medium w-fit ${
+                  uploadingPhoto
+                    ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100'
+                }`}>
+                  {uploadingPhoto ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-orange-400/30 border-t-orange-400 rounded-full animate-spin" />
+                      Uploading to Cloudinary...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon size={14} />
+                      {photoPreview ? 'Change Photo' : 'Upload Photo'}
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-gray-400 mt-1">Max 2MB. JPG, PNG supported.</p>
               </div>
+
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowCandidateModal(false)}
+                <button type="button" onClick={resetCandidateModal}
                   className="flex-1 border border-gray-200 text-gray-500 py-3 rounded-xl hover:bg-gray-50 font-medium text-sm">
                   Cancel
                 </button>
-                <motion.button type="submit" disabled={saving}
+                <motion.button type="submit" disabled={saving || uploadingPhoto}
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50">
-                  {saving ? 'Saving...' : 'Save Candidate'}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                  {saving ? 'Saving...' : uploadingPhoto ? 'Wait for upload...' : 'Save Candidate'}
                 </motion.button>
               </div>
             </form>

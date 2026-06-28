@@ -98,19 +98,29 @@ export default function AdminElections() {
   }
   setSaving(true)
   setError('')
-  console.log('Submitting candidate with photoUrl:', photoUrl)
   try {
+    // Step 1: Create candidate without photo
     const payload = {
       full_name: candidateForm.full_name,
       party: candidateForm.party,
       bio: candidateForm.bio,
       display_order: candidateForm.display_order,
       election: selectedElection.id,
-      photo_url_direct: photoUrl || null,
     }
-    console.log('Payload:', payload)
+     console.log('Step 1 - Creating candidate:', payload)
     const response = await api.post('/candidates/', payload)
-    console.log('Response:', response.data)
+    const candidateId = response.data.id
+    console.log('Step 1 - Candidate created id:', candidateId)
+
+    // Step 2: Save photo URL separately
+    if (photoUrl && candidateId) {
+      console.log('Step 2 - Saving photo:', photoUrl)
+      const photoResponse = await api.post(`/candidates/${candidateId}/photo/`, {
+        photo_url_direct: photoUrl
+      })
+      console.log('Step 2 - Photo saved:', photoResponse.data)
+    }
+
     setShowCandidateModal(false)
     setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0 })
     setPhotoUrl('')
@@ -118,10 +128,9 @@ export default function AdminElections() {
     fetchElections()
   } catch (err) {
     console.error('Error:', err.response?.data)
-    setError(err.response?.data?.error || JSON.stringify(err.response?.data) || 'Failed to add candidate')
+    setError(err.response?.data?.error || 'Failed to add candidate')
   } finally { setSaving(false) }
 }
-
   const updateStatus = async (id, status) => {
     try { await api.patch(`/elections/${id}/`, { status }); fetchElections() }
     catch (err) { console.error(err) }

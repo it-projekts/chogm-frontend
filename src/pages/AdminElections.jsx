@@ -90,33 +90,37 @@ export default function AdminElections() {
     finally { setSaving(false) }
   }
 
-  const handleAddCandidate = async (e) => {
-    e.preventDefault()
-    if (uploadingPhoto) {
-      setError('Please wait for the photo to finish uploading')
-      return
-    }
-    setSaving(true)
-    setError('')
-    try {
-      await api.post('/candidates/', {
-        full_name: candidateForm.full_name,
-        party: candidateForm.party,
-        bio: candidateForm.bio,
-        display_order: candidateForm.display_order,
-        election: selectedElection.id,
-        photo_url_direct: photoUrl || null,
-      })
-      setShowCandidateModal(false)
-      setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0 })
-      setPhotoUrl('')
-      setPhotoPreview('')
-      fetchElections()
-    } catch (err) {
-      console.error(err)
-      setError(err.response?.data?.error || 'Failed to add candidate')
-    } finally { setSaving(false) }
+ const handleAddCandidate = async (e) => {
+  e.preventDefault()
+  if (uploadingPhoto) {
+    setError('Please wait for the photo to finish uploading')
+    return
   }
+  setSaving(true)
+  setError('')
+  console.log('Submitting candidate with photoUrl:', photoUrl)
+  try {
+    const payload = {
+      full_name: candidateForm.full_name,
+      party: candidateForm.party,
+      bio: candidateForm.bio,
+      display_order: candidateForm.display_order,
+      election: selectedElection.id,
+      photo_url_direct: photoUrl || null,
+    }
+    console.log('Payload:', payload)
+    const response = await api.post('/candidates/', payload)
+    console.log('Response:', response.data)
+    setShowCandidateModal(false)
+    setCandidateForm({ full_name: '', party: '', bio: '', display_order: 0 })
+    setPhotoUrl('')
+    setPhotoPreview('')
+    fetchElections()
+  } catch (err) {
+    console.error('Error:', err.response?.data)
+    setError(err.response?.data?.error || JSON.stringify(err.response?.data) || 'Failed to add candidate')
+  } finally { setSaving(false) }
+}
 
   const updateStatus = async (id, status) => {
     try { await api.patch(`/elections/${id}/`, { status }); fetchElections() }
